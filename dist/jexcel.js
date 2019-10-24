@@ -98,6 +98,8 @@ var jexcel = (function(el, options) {
         mergeCells:{},
         // Create toolbar
         toolbar:null,
+        // Create cellbar
+        cellbar:null,
         // Allow search
         search:false,
         // Create pagination
@@ -155,20 +157,20 @@ var jexcel = (function(el, options) {
         // Texts
         text:{
             noRecordsFound: 'No records found',
-            showingPage: 'Showing page {0} of {1} entries',
+            showingPage: '第{0}页 / 共{1}页',
             show: 'Show ',
             search: 'Search',
             entries: ' entries',
             columnName: 'Column name',
-            insertANewColumnBefore: 'Insert a new column before',
-            insertANewColumnAfter: 'Insert a new column after',
-            deleteSelectedColumns: 'Delete selected columns',
-            renameThisColumn: 'Rename this column',
-            orderAscending: 'Order ascending',
-            orderDescending: 'Order descending',
-            insertANewRowBefore: 'Insert a new row before',
-            insertANewRowAfter: 'Insert a new row after',
-            deleteSelectedRows: 'Delete selected rows',
+            insertANewColumnBefore: '左侧插入一列',
+            insertANewColumnAfter: '右侧插入一列',
+            deleteSelectedColumns: '删除选中列',
+            renameThisColumn: '设置列名',
+            orderAscending: '升序',
+            orderDescending: '降序',
+            insertANewRowBefore: '上侧插入一行',
+            insertANewRowAfter: '下侧插入一行',
+            deleteSelectedRows: '删除选中行',
             editComments: 'Edit comments',
             addComments: 'Add comments',
             comments: 'Comments',
@@ -187,7 +189,7 @@ var jexcel = (function(el, options) {
             noCellsSelected: 'No cells selected',
         },
         // About message
-        about:"jExcel CE Spreadsheet\nVersion 3.5.2\nAuthor: Paul Hodel <paul.hodel@gmail.com>\nWebsite: https://bossanova.uk/jexcel/v3",
+        about:"jExcel CE Spreadsheet\nVersion 3.5.2\n作者: Paul Hodel <paul.hodel@gmail.com>\nWebsite: https://bossanova.uk/jexcel/v3",
     };
 
     // Loading initial configuration from user
@@ -376,10 +378,16 @@ var jexcel = (function(el, options) {
         obj.toolbar = document.createElement('div');
         obj.toolbar.classList.add('jexcel_toolbar');
 
+        // Create cell edit bar
+        obj.cellbar = document.createElement('div');
+        obj.cellbar.classList.add('jexcel_toolbar');
+        
         // Search
         var searchContainer = document.createElement('div');
-        var searchText = document.createTextNode((obj.options.text.search) + ': ');
+        var searchText = document.createTextNode(obj.options.text.search);
+        
         obj.searchInput = document.createElement('input');
+        
         obj.searchInput.classList.add('jexcel_search');
         searchContainer.appendChild(searchText);
         searchContainer.appendChild(obj.searchInput);
@@ -513,7 +521,7 @@ var jexcel = (function(el, options) {
         obj.pagination.appendChild(paginationPages);
 
         // Append containers to the table
-        if (obj.options.search == true) {
+        if (obj.options.search == 'root') {
             el.appendChild(obj.filter);
         }
 
@@ -523,6 +531,7 @@ var jexcel = (function(el, options) {
         obj.content.appendChild(obj.textarea);
 
         el.appendChild(obj.toolbar);
+        el.appendChild(obj.cellbar);
         el.appendChild(obj.content);
         el.appendChild(obj.pagination);
         el.appendChild(obj.contextMenu);
@@ -533,7 +542,15 @@ var jexcel = (function(el, options) {
         if (obj.options.toolbar && obj.options.toolbar.length) {
             obj.createToolbar();
         }
-
+        if (obj.options.search == 'toolbar' ){
+            obj.toolbar.appendChild(searchContainer);
+        }
+        
+        // Create Cellbar
+        if (obj.options.cellbar && obj.options.cellbar.length) {
+            console.log('cellbar creation');
+            obj.createCellbar();
+        } 
         // Fullscreen
         if (obj.options.fullscreen == true) {
             el.classList.add('fullscreen');
@@ -763,14 +780,15 @@ var jexcel = (function(el, options) {
      * @param integer row number
      * @return string value
      */
-    obj.getJson = function(highlighted) {
+    obj.getJson = function(highlighted=false) {
         // Control vars
         var data = [];
 
         // Column and row length
         var x = obj.options.columns.length
         var y = obj.options.data.length
-
+        
+        
         // Go through the columns to get the data
         for (var j = 0; j < y; j++) {
             var row = null;
@@ -779,7 +797,10 @@ var jexcel = (function(el, options) {
                     if (row == null) {
                         row = {};
                     }
-                    row[obj.options.columns[i].name] = obj.options.data[j][i];
+                    //var key = obj.options.columns[i].name;
+                    var key = obj.getHeader(i);
+                    row[key] = obj.options.data[j][i];
+                    
                 }
             }
 
@@ -1028,6 +1049,128 @@ var jexcel = (function(el, options) {
     }
 
     /**
+        Create xxxxbar
+    **/
+    obj.createXbar = function(xbar_data, bar_container) {
+        for (var i = 0; i < xbar_data.length; i++) {
+            if (xbar_data[i].type == 'i') {
+                var xbarItem = document.createElement('i');
+                xbarItem.classList.add('jexcel_toolbar_item');
+                xbarItem.classList.add('material-icons');
+                xbarItem.setAttribute('data-k', xbar_data[i].k);
+                xbarItem.setAttribute('data-v', xbar_data[i].v);
+                // Tooltip
+                if (xbar_data[i].tooltip) {
+                    xbarItem.setAttribute('title', xbar_data[i].tooltip);
+                }
+                // Handle click
+                if (xbar_data[i].onclick && typeof(xbar_data[i].onclick)) {
+                    xbarItem.onclick = xbar_data[i].onclick;
+                } else {
+                    xbarItem.onclick = function() {
+                        var k = this.getAttribute('data-k');
+                        var v = this.getAttribute('data-v');
+                        obj.setStyle(obj.highlighted, k, v);
+                    }
+                }
+                // Append element
+                xbarItem.innerHTML = xbar_data[i].content;
+                bar_container.appendChild(xbarItem);
+            } else if (xbar_data[i].type == 'select') {
+               var xbarItem = document.createElement('select');
+               xbarItem.classList.add('jexcel_toolbar_item');
+               xbarItem.setAttribute('data-k', xbar_data[i].k);
+               // Tooltip
+               if (xbar_data[i].tooltip) {
+                   xbarItem.setAttribute('title', xbar_data[i].tooltip);
+               }
+               // Handle onchange
+               if (xbar_data[i].onchange && typeof(xbar_data[i].onchange)) {
+                   xbarItem.onchange = xbar_data[i].onchange;
+               } else {
+                   xbarItem.onchange = function() {
+                       var k = this.getAttribute('data-k');
+                       obj.setStyle(obj.highlighted, k, this.value);
+                   }
+               }
+               // Add options to the dropdown
+               for(var j = 0; j < xbar_data[i].v.length; j++) {
+                    var xbarDropdownOption = document.createElement('option');
+                    xbarDropdownOption.value = xbar_data[i].v[j];
+                    xbarDropdownOption.innerHTML = xbar_data[i].v[j];
+                    xbarItem.appendChild(xbarDropdownOption);
+               }
+               bar_container.appendChild(xbarItem);
+            } else if (xbar_data[i].type == 'color') {
+                 var xbarItem = document.createElement('i');
+                 xbarItem.classList.add('jexcel_toolbar_item');
+                 xbarItem.classList.add('material-icons');
+                 xbarItem.setAttribute('data-k', xbar_data[i].k);
+                 xbarItem.setAttribute('data-v', '');
+                 // xbarItem
+                 if (xbar_data[i].tooltip) {
+                     xbarItem.setAttribute('title', xbar_data[i].tooltip);
+                 }
+                 bar_container.appendChild(xbarItem);
+                 xbarItem.onclick = function() {
+                     this.color.open();
+                 }
+                 xbarItem.innerHTML = xbar_data[i].content;
+                 jSuites.color(xbarItem, {
+                     onchange:function(o, v) {
+                         var k = o.getAttribute('data-k');
+                         obj.setStyle(obj.highlighted, k, v);
+                     }
+                 });
+            } else if (xbar_data[i].type == 'textarea') {
+                 var bar_height = "24px";
+                 var xbarItem = document.createElement('textarea');
+                 xbarItem.style.overflowY = "scroll";
+                 xbarItem.style.resize = "vertical";
+                 xbarItem.style.width = "100%";
+                 xbarItem.style.height = bar_height;
+                 xbarItem.style.minHeight = bar_height;
+                 xbarItem.id = xbar_data[i].id;
+                 xbarItem.classList.add('jexcel_toolbar_item');
+                 //xbarItem.classList.add('material-icons');
+                 xbarItem.setAttribute('data-k', xbar_data[i].k);
+                 xbarItem.setAttribute('data-v', '');
+                 // xbarItem
+                 if (xbar_data[i].tooltip) {
+                     xbarItem.setAttribute('title', xbar_data[i].tooltip);
+                 }
+                 
+                 //
+                 bar_container.style.height = bar_height;
+                 xbarItem.onfocus = function() {
+                     this.style.height = this.scrollHeight ;
+                 }
+                 xbarItem.onblur = function(){
+                     this.style.height = bar_height;
+                 }
+                 xbarItem.onSelectionChange = function(){
+                     this.innerText="adf"
+                     obj.selectedCell
+                 }
+                 bar_container.appendChild(xbarItem);
+                 xbarItem.innerHTML = xbar_data[i].content;
+            } 
+        }
+    }
+    
+    /**
+        Create Cell_edit_bar
+    **/
+    obj.createCellbar = function(cellbar){
+        if (cellbar) {
+            obj.options.cellbar = cellbar;
+        } else {
+            var cellbar = obj.options.cellbar;
+        }
+        
+        obj.createXbar(cellbar, obj.cellbar);
+    }
+    /**
      * Create toolbar
      */
     obj.createToolbar = function(toolbar) {
@@ -1036,7 +1179,16 @@ var jexcel = (function(el, options) {
         } else {
             var toolbar = obj.options.toolbar;
         }
-
+        obj.createXbar(toolbar, obj.toolbar);
+        
+    }
+    obj.createToolbar0 = function(toolbar) {
+        if (toolbar) {
+            obj.options.toolbar = toolbar;
+        } else {
+            var toolbar = obj.options.toolbar;
+        }
+        
         for (var i = 0; i < toolbar.length; i++) {
             if (toolbar[i].type == 'i') {
                 var toolbarItem = document.createElement('i');
@@ -2373,7 +2525,7 @@ var jexcel = (function(el, options) {
             }
 
             if (typeof(obj.options.onselection) == 'function') {
-                obj.options.onselection(el, borderLeft, borderTop, borderRight, borderBottom, origin);
+                obj.options.onselection(obj, borderLeft, borderTop, borderRight, borderBottom, origin);
             }
         }
 
@@ -5353,7 +5505,7 @@ var jexcel = (function(el, options) {
     obj.paste = function(x, y, data) {
         // Paste filter
         if (typeof(obj.options.onbeforepaste) == 'function') {
-            var data = obj.options.onbeforepaste(instance, data);
+            var data = obj.options.onbeforepaste(obj, x, y, data);
         }
 
         // Controls
@@ -6513,7 +6665,7 @@ jexcel.mouseDownControls = function(e) {
             jexcel.current = null;
         }
     }
-
+    console.log(6669,'mouseButton',mouseButton,e.buttons,jexcel.current);
     if (jexcel.current && mouseButton == 1) {
         if (e.target.classList.contains('jexcel_selectall')) {
             if (jexcel.current) {
