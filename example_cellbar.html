@@ -1,0 +1,187 @@
+<html>
+<script src="/libs/jexcel/jexcel.js"></script>
+<link rel="stylesheet" href="/libs/jexcel/jexcel.css" type="text/css" />
+<script src="http://libs.baidu.com/jquery/1.10.2/jquery.min.js"></script>
+<script src="/libs/jexcel/jsuites.js"></script>
+<link rel="stylesheet" href="/libs/jexcel/jsuites.css" type="text/css" />
+<link rel="stylesheet" type="text/css" href="/libs/jexcel/google_material_icons.css" />
+<div id="spreadsheet"></div>
+
+<script>
+var data = [
+    [],
+    [],
+];
+
+
+
+function undo(instance, selectedCell)
+{
+    $(instance).jexcel('undo');
+}
+
+function redo(instance, selectedCell)
+{
+    $(instance).jexcel('redo');
+}
+
+function ir_run(instance, selectedCell)
+{
+    btn = $('#spreadsheet .jexcel_toolbar_item').filter('[data-k=btn_run]')[0]
+    if (btn.innerText=='send'){
+        btn.innerText = 'pause';
+    }else{
+        btn.innerText = 'send';
+    }
+    
+    console.log('ir_run');
+    
+}
+function ir_stop(instance, selectedCell)
+{
+    console.log(instance);
+    console.log('ir_stop');
+    
+}function ir_step(instance, selectedCell)
+{
+    console.log('ir_step');
+    
+}
+function toExcel(instance, selectedCell)
+{
+     //$(instance).jexcel('download');
+     tabletoexcel('spreadsheet', 'name', 'datatable.xls');
+}
+
+var tabletoexcel = (function () {
+  var uri = 'data:application/vnd.ms-excel;base64,'
+  , template = '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40"><head><!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet><x:Name>{worksheet}</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions></x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]--></head><body><table>{table}</table></body></html>'
+  , base64 = function (s) { return window.btoa(unescape(encodeURIComponent(s))) }
+  , format = function (s, c) { return s.replace(/{(\w+)}/g, function (m, p) { return c[p]; }) }
+  return function (table, name, filename) {
+  if (!table.nodeType) table = document.getElementById(table)
+  var ctx = { worksheet: name || 'Worksheet', table: table.innerHTML }
+  
+  //var blob = new Blob(["\uFEFF"+data], {type: 'text/csv;charset=utf-8;'});
+    
+
+            var pom = document.createElement('a');
+            //var url = URL.createObjectURL(blob);
+            pom.href = uri + base64(format(template, ctx));
+            pom.setAttribute('download', options.csvFileName + '.csv');
+            document.body.appendChild(pom);
+            pom.click();
+            document.body.removeChild(pom);
+  }
+})();
+
+var xtable = jexcel(document.getElementById('spreadsheet'), {
+    data:data,
+    pagination:20, //翻页栏
+    search:'toolbar',
+    colHeaders:['text',' ','textA','textB','textC','textD','textE'],
+    colWidths: [ 400, 10, 100, 100, 100, 100, 100 ],
+    text:{search:'查找'},
+    columns: [
+        { type: 'text' , wordWrap:false, align:'left'},
+        { type: 'dropdown', readOnly:true, source:[ {'id':'1', 'name':'a'}, {'id':'2', 'name':'b'}, {'id':'3', 'name':'c'} ] },
+        { type: 'text' },
+        { type: 'text' },
+        { type: 'text' },
+        { type: 'text' },
+        { type: 'text' },
+     ],
+    toolbar:[
+        { type:'i', content:'undo', onclick:undo },
+        { type:'i', content:'redo', onclick:redo },
+        { type:'i', content:'file_upload', onclick:''},
+        { type:'i', content:'file_download', onclick:download_json},
+        { type:'select', k:'font-family', v:[ '宋体', 'Arial','Verdana'] },
+        { type:'select', k:'font-size', v:['9px','10px','11px','12px','13px','14px'] },
+        { type:'i', content:'format_align_left', k:'text-align', v:'left' },
+        { type:'i', content:'format_align_center', k:'text-align', v:'center' },
+        { type:'i', content:'format_align_right', k:'text-align', v:'right' },
+        { type:'i', content:'send', k:'btn_run', onclick:ir_run },
+        { type:'i', content:'stop', onclick:ir_stop },
+        { type:'i', content:'skip_next', onclick:ir_step, align:'right'},
+        { type:'i', content:'setting', onclick:''},
+        
+    ],
+    cellbar:[
+        { type:'select', k:'font-family', v:[ '宋体', 'Arial','Verdana'] },
+        { type:'i', content:'pageview', k:'view', v:'v' },
+        { type:'i', content:'functions', k:'fun', v:'v' },
+        { type:'textarea', id:'cell_editor'},
+    ],
+    updateTable:function(instance, cell, col, row, val, label, cellName) {
+        // Odd row colours
+        if (row % 2) {
+            cell.style.backgroundColor = '#edf3ff';
+        }
+    },
+    onselection:function(instance, bLft, bTop, bRht, bBtm, origin){
+        var sel_val = this.data[bTop][bLft];
+        $('#cell_editor').text(sel_val);
+    },
+    onbeforepaste:function(instance, x, y, data){
+        //console.log(instance,data);
+        var lines = data.split('\n');
+        var MAX_LINES = 300;
+        if (lines.length > MAX_LINES){
+            var new_data = lines.slice(0, MAX_LINES).join('\n');
+            return new_data;
+        }
+    },
+     minDimensions:[5,5]
+});
+
+
+function download_json(instance, selectedCell){
+        data = xtable.getJson(false);
+            var pom = document.createElement('a');
+            blob_data = JSON.stringify(data);
+            var blob = new Blob(["\uFEFF"+blob_data], {type: 'text/json;charset=utf-8;'});
+            var url = URL.createObjectURL(blob);
+            pom.href = url;
+            pom.setAttribute('download', 'emr_ir_export.json');
+            document.body.appendChild(pom);
+            pom.click();
+            document.body.removeChild(pom);
+        
+}
+
+function download_csv (instance, selectedCell) {
+        // Get table id
+        var id = $(instance).prop('id');
+        // Increment and get the current history index
+        var options = $.fn.jexcel.defaults[id];
+        // Data
+        var data = '';
+
+        // Get headers if applicable
+        if (options.csvHeaders == true) {
+            data = $(instance).jexcel('getHeaders', true) + "\n";
+        }
+
+        // Get data
+        data += $(instance).jexcel('copy', false, ',', true);
+
+        // Download element
+        var blob = new Blob(["\uFEFF"+data], {type: 'text/csv;charset=utf-8;'});
+
+        // IE Compatibility
+        if (window.navigator && window.navigator.msSaveOrOpenBlob) {
+            window.navigator.msSaveOrOpenBlob(blob, options.csvFileName + '.csv');
+        } else {
+            var pom = document.createElement('a');
+            var url = URL.createObjectURL(blob);
+            pom.href = url;
+            pom.setAttribute('download', options.csvFileName + '.csv');
+            document.body.appendChild(pom);
+            pom.click();
+            document.body.removeChild(pom);
+        }
+    }
+
+</script>
+</html>
